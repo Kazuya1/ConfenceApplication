@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
      */
     int client[FD_SETSIZE];
     int i;
-    for (i = 0; i < FD_SETSIZE; i++) client[i] = -1;
+    for (i=0;i<FD_SETSIZE;i++) client[i] = -1;
         
     /* receive requests and process them */
     while (1) {
