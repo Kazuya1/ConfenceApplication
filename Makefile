@@ -10,7 +10,7 @@ confclient: confclient.o confutils.o
 
 # compile server program
 confserver: confserver.o confutils.o
-	gcc -g -o confserver confserver.o  confutils.o
+	gcc -g —lpthread o confserver confserver.o  confutils.o
 
 clean:
 	rm -f *.o confclient confserver

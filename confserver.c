@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 extern char * recvtext(int sd);
 extern int sendtext(int sd, char *msg);
@@ -20,16 +21,108 @@ extern int sendtext(int sd, char *msg);
 extern int startserver();
 /*--------------------------------------------------------------------*/
 
+struct arg{
+    int fd;
+    int* clients;
+};
+
+pthread_mutex_t lock;
+
+void handle_thread(void* argument){
+    /*
+     FILL HERE
+     wait using select() for
+     messages from existing clients and
+     connect requests from new clients
+     */
+    struct arg* tmp = (struct arg*)argument;
+    int fd = tmp->fd;
+    int i;
+    
+    pthread_mutex_lock(&lock);
+    for(i=0;i<FD_SETSIZE;i++){
+        if(tmp->clients[i]==-1){
+            tmp->clients[i]=fd;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&lock);
+    
+    /* look for messages from live clients */
+    char * clienthost; /* host name of the client */
+    ushort clientport; /* port number of the client */
+    
+    
+    /*
+     FILL HERE:
+     figure out client's host name and port
+     using getpeername() and gethostbyaddr()
+     */
+    struct sockaddr_in sa;
+    unsigned int salen = sizeof(struct sockaddr_in);
+    if(getpeername(fd, (struct sockaddr*)&sa, &salen)==-1){
+        perror("getpeername");
+        exit(1);
+    }
+    struct hostent* ret = gethostbyaddr((void*)&sa.sin_addr.s_addr, 4, AF_INET);
+    clienthost = ret->h_name;
+    clientport = ntohs(sa.sin_port);
+    char* msg = NULL;
+    /* read the message */
+    while(1){
+        msg = recvtext(fd);
+        if (!msg) {
+            /* disconnect from client */
+            printf("admin: disconnect from '%s(%hu)'\n", clienthost,
+                   clientport);
+            
+            pthread_mutex_lock(&lock);
+            for(i=0;i<FD_SETSIZE;i++){
+                if(tmp->clients[i]==fd){
+                    tmp->clients[i]=-1;
+                    break;
+                }
+            }
+            pthread_mutex_unlock(&lock);
+            
+            /* close the socket */
+            close(fd);
+            break;
+        } else {
+            /*
+             FILL HERE
+             send the message to all live clients
+             except the one that sent the message
+             */
+            for(i=0;i<FD_SETSIZE;i++){
+                if(tmp->clients[i]!=-1&&tmp->clients[i]!=fd){
+                    sendtext(tmp->clients[i], msg);
+                }
+            }
+            
+            
+            /* display the message */
+            printf("%s(%hu): %s", clienthost, clientport, msg);
+            
+            /* free the message */
+            free(msg);
+        }
+    }
+    pthread_exit(NULL);
+}
+
+
+
 /*--------------------------------------------------------------------*/
 int fd_isset(int fd, fd_set *fsp) {
     return FD_ISSET(fd, fsp);
 }
 /* main routine */
 int main(int argc, char *argv[]) {
+    pthread_mutex_init(&lock, NULL);
+    
+    
     int servsock; /* server socket descriptor */
-    fd_set tmp;
-    fd_set livesdset; /* set of live client sockets */
-    int livesdmax; /* largest live client socket descriptor */
     
     /* check usage */
     if (argc != 1) {
@@ -49,154 +142,49 @@ int main(int argc, char *argv[]) {
      init the set of live clients
      */
     int client[FD_SETSIZE];
-    int maxindex = -1;
     int i;
-    for(i=0;i<FD_SETSIZE;i++) client[i] = -1;
-
-    livesdmax = servsock;
-    FD_ZERO(&livesdset);
-    FD_SET(servsock, &livesdset);
+    for (i = 0; i < FD_SETSIZE; i++) client[i] = -1;
         
     /* receive requests and process them */
     while (1) {
-        int frsock; /* loop variable */
-        tmp = livesdset;
+        pthread_t thread_id;
         /*
-         FILL HERE
-         wait using select() for
-         messages from existing clients and
-         connect requests from new clients
+         FILL HERE:
+         accept a new connection request
          */
-        if(select(livesdmax+1, &tmp, NULL, NULL, NULL)==-1){
-            perror("select");
-            exit(1);
-        }
-        /* look for messages from live clients */
-        for (frsock = 3; frsock <= livesdmax; frsock++) {
-            /* skip the listen socket */
-            /* this case is covered separately */
-            if (frsock == servsock)
-                continue;
-            
-            if (fd_isset(frsock, &tmp)) {
-                char * clienthost; /* host name of the client */
-                ushort clientport; /* port number of the client */
-                /*
-                 FILL HERE:
-                 figure out client's host name and port
-                 using getpeername() and gethostbyaddr()
-                 */
-                struct sockaddr_in sa;
-                unsigned int salen = sizeof(struct sockaddr_in);
-                if(getpeername(frsock, (struct sockaddr*)&sa, &salen)==-1){
-                    perror("getpeername");
-                    exit(1);
-                }
-                struct hostent* ret = gethostbyaddr((void*)&sa.sin_addr.s_addr, 4, AF_INET);
-                clienthost = ret->h_name;
-                clientport = ntohs(sa.sin_port);
-                char* msg = NULL;
-                /* read the message */
-                msg = recvtext(frsock);
-                if (!msg) {
-                    /* disconnect from client */
-                    printf("admin: disconnect from '%s(%hu)'\n", clienthost,
-                           clientport);
-                    
-                    /*
-                     FILL HERE:
-                     remove this guy from the set of live clients
-                     */
-                    FD_CLR(frsock, &livesdset);
-                    for(i=0;i<FD_SETSIZE;i++){
-                        if(frsock==client[i]){
-                            client[i] = -1;
-                        }
-                    }
-                    if(frsock==livesdmax){
-                        livesdmax = servsock;
-                        for(i=0;i<FD_SETSIZE;i++){
-                            if(client[i]>livesdmax){
-                                livesdmax = client[i];
-                            }
-                        }
-                    }
-                    
-                    /* close the socket */
-                    close(frsock);
-                } else {
-                    /*
-                     FILL HERE
-                     send the message to all live clients
-                     except the one that sent the message
-                     */
-                    for(i=0;i<FD_SETSIZE;i++){
-                        if(client[i]>0&&client[i]!=frsock){
-                            sendtext(client[i], msg);
-                        }
-                    }
-                    
-                    /* display the message */
-                    printf("%s(%hu): %s", clienthost, clientport, msg);
-                    
-                    /* free the message */
-                    free(msg);
-                }
-            }
-        }
+        struct sockaddr_in sa;
+        unsigned int salen = sizeof(struct sockaddr);
+        int csd = accept(servsock,(struct sockaddr*)&sa,&salen);
         
-        /* look for connect requests */
-        if (fd_isset(servsock, &tmp)) {
-            
+        /* if accept is fine? */
+        if (csd != -1) {
+            char * clienthost; /* host name of the client */
+            ushort clientport; /* port number of the client */
             /*
              FILL HERE:
-             accept a new connection request
+             figure out client's host name and port
+             using gethostbyaddr() and without using getpeername().
              */
-            struct sockaddr_in sa;
-            unsigned int salen = sizeof(struct sockaddr);
-            int csd = accept(servsock,(struct sockaddr*)&sa,&salen);
             
-            /* if accept is fine? */
-            if (csd != -1) {
-                char * clienthost; /* host name of the client */
-                ushort clientport; /* port number of the client */
-                /*
-                 FILL HERE:
-                 figure out client's host name and port
-                 using gethostbyaddr() and without using getpeername().
-                 */
-                
-                struct hostent* ret = gethostbyaddr((const void*)&sa.sin_addr, sizeof(struct in_addr), AF_INET);
-                if(ret==NULL){
-                    perror("gethostbyaddr");
-                    exit(1);
-                }
-                clienthost = ret->h_name;
-                clientport = ntohs(sa.sin_port);
-                printf("admin: connect from '%s' at '%hu'\n", clienthost,
-                       clientport);
-                
-                /*
-                 FILL HERE:
-                 add this guy to set of live clients
-                 */
-                for(i=0;i<FD_SETSIZE;i++){
-                    if(client[i]<0){
-                        client[i] = csd;
-                        break;
-                    }
-                }
-                if(i==FD_SETSIZE){
-                    printf("Too many clients\n");
-                    exit(1);
-                }
-                FD_SET(csd,&livesdset);
-                if(i>maxindex) maxindex = i;
-                if(csd>livesdmax) livesdmax = csd;
-            } else {
-                perror("accept");
-                exit(0);
+            struct hostent* ret = gethostbyaddr((const void*)&sa.sin_addr, sizeof(struct in_addr), AF_INET);
+            if(ret==NULL){
+                perror("gethostbyaddr");
+                exit(1);
             }
+            clienthost = ret->h_name;
+            clientport = ntohs(sa.sin_port);
+            printf("admin: connect from '%s' at '%hu'\n", clienthost,
+                   clientport);
+            struct arg argument;
+            argument.fd = csd;
+            argument.clients = client;
+            if(pthread_create(&thread_id,NULL,(void *)(&handle_thread),(void *)(&argument)) == -1){
+                fprintf(stderr,"pthread_create error!\n");
+                break;
+            }
+        } else {
+            perror("accept");
+            exit(0);
         }
     }
     return 0;

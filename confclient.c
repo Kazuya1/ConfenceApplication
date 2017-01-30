@@ -22,10 +22,21 @@ extern int sendtext(int sd, char *msg);
 extern int hooktoserver(char *servhost, ushort servport);
 /*--------------------------------------------------------------------*/
 
+void handle_thread(void* sock_fd){
+    int sock = *((int*))sock_fd;
+    while (1) {
+        char msg[MAXMSGLEN];
+        if (!fgets(msg, MAXMSGLEN, stdin))
+            exit(0);
+        sendtext(sock, msg);
+        printf(">");
+        fflush(stdout);
+    }
+}
+
 /*--------------------------------------------------------------------*/
 int main(int argc, char *argv[]) {
     int sock;
-    fd_set rfds;
     int retval;
     
     /* check usage */
@@ -40,44 +51,25 @@ int main(int argc, char *argv[]) {
         perror("Error: ");
         exit(1);
     }
+    pthread_t thread_id;
+    if(pthread_create(&thread_id,NULL,(void *)(&handle_thread),(void *)(&sock)) == -1){
+        fprintf(stderr,"pthread_create error!\n");
+        break;
+    }
     
     /* keep talking */
     while (1) {
-        FD_ZERO(&rfds);
-        FD_SET(0, &rfds);
-        FD_SET(sock, &rfds);
-        /*
-         FILL HERE
-         use select() to watch simultaneously for
-         inputs from user and messages from server
-         */
-        if((retval=select(sock+1, &rfds, NULL, NULL, NULL))==-1){
-            perror("select");
+        char *msg;
+        msg = recvtext(sock);
+        if (!msg) {
+            /* server killed, exit */
+            fprintf(stderr, "error: server died\n");
             exit(1);
         }
-
-        if (FD_ISSET(sock, &rfds)){
-            char *msg;
-            msg = recvtext(sock);
-            if (!msg) {
-                /* server killed, exit */
-                fprintf(stderr, "error: server died\n");
-                exit(1);
-            }
-            
-            /* display the message */
-            printf(">>> %s", msg);
-            /* free the message */
-            free(msg);
-        }
-        
-        if (FD_ISSET(0, &rfds)) {
-            char msg[MAXMSGLEN];
-            if (!fgets(msg, MAXMSGLEN, stdin))
-                exit(0);
-            sendtext(sock, msg);
-        }
-        
+        /* display the message */
+        printf(">>> %s", msg);
+        /* free the message */
+        free(msg);
         printf(">");
         fflush(stdout);
     }
