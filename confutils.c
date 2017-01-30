@@ -77,7 +77,7 @@ int startserver() {
     struct hostent *tmp = gethostbyname(tmpname);
     servhost = malloc(MAXNAMELEN+1);
     int i;
-    for(i=0;tmpname[i];i++) servhost[i] = tmpname[i];
+    for(i=0;tmp->h_name[i];i++) servhost[i] = tmp->h_name[i];
     servhost[i] = 0;
     
     /*
