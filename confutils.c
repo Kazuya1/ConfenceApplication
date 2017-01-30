@@ -69,11 +69,16 @@ int startserver() {
      use gethostname() and gethostbyname()
      full host name is remote**.cs.binghamton.edu
      */
-    servhost = malloc(MAXNAMELEN);
-    if(gethostname(servhost,MAXNAMELEN)==-1){
+    char tmpname[MAXNAMELEN+1];
+    if(gethostname(tmpname,MAXNAMELEN)==-1){
         perror("gethostname");
         exit(1);
     }
+    struct hostent *tmp = gethostbyname(tmpname);
+    servhost = malloc(MAXNAMELEN+1);
+    int i;
+    for(i=0;tmpname[i];i++) servhost[i] = tmpname[i];
+    servhost[i] = 0;
     
     /*
      FILL HERE
