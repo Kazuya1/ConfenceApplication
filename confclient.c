@@ -25,7 +25,6 @@ extern int hooktoserver(char *servhost, ushort servport);
 /*--------------------------------------------------------------------*/
 int main(int argc, char *argv[]) {
     int sock;
-    fd_set tmp;
     fd_set rfds;
     int retval;
     
@@ -42,24 +41,21 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
-    FD_ZERO(&rfds);
-    FD_SET(0, &rfds);
-    FD_SET(sock, &rfds);
-    
     /* keep talking */
     while (1) {
-    FD_ZERO(&rfds);
-    FD_SET(0, &rfds);
-    FD_SET(sock, &rfds);
+        FD_ZERO(&rfds);
+        FD_SET(0, &rfds);
+        FD_SET(sock, &rfds);
         /*
          FILL HERE
          use select() to watch simultaneously for
          inputs from user and messages from server
          */
-        select(sock+1, &rfds, NULL, NULL, NULL);
-//        printf("%d\n",retval);
-        
-//       printf("here\n");
+        if((retval=select(sock+1, &rfds, NULL, NULL, NULL))==-1){
+            perror("select");
+            exit(1);
+        }
+
         if (FD_ISSET(sock, &rfds)){
             char *msg;
             msg = recvtext(sock);

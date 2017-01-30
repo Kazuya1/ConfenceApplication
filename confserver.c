@@ -48,13 +48,11 @@ int main(int argc, char *argv[]) {
      FILL HERE:
      init the set of live clients
      */
-    
     int client[FD_SETSIZE];
     int maxindex = -1;
     int i;
-    for (i = 0; i < FD_SETSIZE; i++)
-        client[i] = -1;
-    fd_set rset;
+    for(i=0;i<FD_SETSIZE;i++) client[i] = -1;
+
     livesdmax = servsock;
     FD_ZERO(&livesdset);
     FD_SET(servsock, &livesdset);
@@ -69,9 +67,7 @@ int main(int argc, char *argv[]) {
          messages from existing clients and
          connect requests from new clients
          */
-        int sv = select(livesdmax+1, &tmp, NULL, NULL, NULL);
-       // printf("%d\n",sv);
-        if(sv==-1){
+        if(select(livesdmax+1, &tmp, NULL, NULL, NULL)==-1){
             perror("select");
             exit(1);
         }
@@ -79,16 +75,12 @@ int main(int argc, char *argv[]) {
         for (frsock = 3; frsock <= livesdmax; frsock++) {
             /* skip the listen socket */
             /* this case is covered separately */
-            if (frsock == servsock){
- //               printf("here\n");
+            if (frsock == servsock)
                 continue;
-            }
             
             if (fd_isset(frsock, &tmp)) {
                 char * clienthost; /* host name of the client */
                 ushort clientport; /* port number of the client */
-                
-                
                 /*
                  FILL HERE:
                  figure out client's host name and port
