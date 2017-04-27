@@ -140,8 +140,8 @@ int hooktoserver(char *servhost, ushort servport) {
     for(addr_list = h->h_addr_list; *addr_list; addr_list++)
     {
         inet_ntop(AF_INET, *(addr_list), addr_p, INET_ADDRSTRLEN);
-        printf("hostname: %s, was resolved to: %s\n", servhost, addr_p);
-    }    
+        printf("server address: %s\n", addr_p);
+    }
     
     if(connect(sd, (struct sockaddr*)&my_addr, sizeof(my_addr))==-1){
         perror("connect");

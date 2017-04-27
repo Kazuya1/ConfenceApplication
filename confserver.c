@@ -65,7 +65,10 @@ void handle_thread(void* argument){
         exit(1);
     }
     struct hostent* ret = gethostbyaddr((void*)&sa.sin_addr.s_addr, 4, AF_INET);
-    clienthost = ret->h_name;
+    
+    clienthost = malloc(strlen(ret->h_name)+1);
+    strcpy(clienthost,ret->h_name);
+    clienthost[strlen(ret->h_name)] = 0;
     clientport = ntohs(sa.sin_port);
     char* msg = NULL;
     /* read the message */

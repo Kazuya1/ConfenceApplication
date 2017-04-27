@@ -23,7 +23,7 @@ extern int hooktoserver(char *servhost, ushort servport);
 /*--------------------------------------------------------------------*/
 
 void handle_thread(void* sock_fd){
-    int sock = *((int*))sock_fd;
+    int sock = *((int*)sock_fd);
     while (1) {
         char msg[MAXMSGLEN];
         if (!fgets(msg, MAXMSGLEN, stdin))
@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
     pthread_t thread_id;
     if(pthread_create(&thread_id,NULL,(void *)(&handle_thread),(void *)(&sock)) == -1){
         fprintf(stderr,"pthread_create error!\n");
-        break;
+        exit(1);
     }
     
     /* keep talking */
